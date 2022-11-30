@@ -1,8 +1,62 @@
 import Head from 'next/head'
 import Image from 'next/image'
 import styles from '../styles/Home.module.css'
+import crypto from '@aws-crypto/sha256-js';
+import { defaultProvider } from '@aws-sdk/credential-provider-node';
+import { SignatureV4 } from '@aws-sdk/signature-v4';
+import { HttpRequest } from '@aws-sdk/protocol-http';
 
-export default function Home() {
+const { Sha256 } = crypto;
+const GRAPHQL_ENDPOINT = 'https://tfpyiascsvejxefw6zx72xljj4.appsync-api.ap-northeast-1.amazonaws.com/graphql';
+const AWS_REGION = 'ap-northeast-1';
+
+const query = /* GraphQL */ `
+  query LIST_POSTS {
+    listPosts {
+      items {
+        id
+        image
+        title
+        text
+      }
+    }
+  }
+`;
+
+
+export default async function Home() {
+  const endpoint = new URL(GRAPHQL_ENDPOINT);
+  const signer = new SignatureV4({
+    credentials: defaultProvider(),
+    region: AWS_REGION,
+    service: 'appsync',
+    sha256: Sha256
+  });
+  
+  const requestToBeSigned = new HttpRequest({
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+  
+      host: endpoint.host
+    },
+    hostname: endpoint.host,
+    body: JSON.stringify({ query }),
+    path: endpoint.pathname
+  });
+  
+  const signed = await signer.sign(requestToBeSigned);
+  const request = new Request(endpoint, signed);
+
+  let body;
+  let response;
+  
+  response = await fetch(request);
+  body = await response.json();
+  
+  console.log(response);
+  console.log(body);
+
   return (
     <div className={styles.container}>
       <Head>
